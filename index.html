@@ -240,8 +240,9 @@
                 <select id="utility">
                     <option value="celpe">CELPE</option>
                     <option value="cosern">COSERN</option>
-                    <option value="cosern">COELBA</option>
+                    <option value="coelba">COELBA</option>
                     <option value="energisa">ENERGISA PB</option>
+                    <option value="sulgipe">SULGIPE</option>
                 </select>
             </div>
             
@@ -282,11 +283,12 @@
                             <label for="phaseType">Tipo de Fase</label>
                             <select id="phaseType">
                                 <option value="monofasico">Monofásico</option>
+                                <option value="bifasico">Bifásico (somente SULGIPE)</option>
                                 <option value="trifasico">Trifásico</option>
                             </select>
                         </div>
                     </div>
-                    
+
                     <div class="tab-pane" id="equipment-tab">
                         <div class="form-group">
                             <label>Adicionar Equipamentos</label>
@@ -306,12 +308,13 @@
                             <label for="equipmentPhaseType">Tipo de Fase</label>
                             <select id="equipmentPhaseType">
                                 <option value="monofasico">Monofásico</option>
+                                <option value="bifasico">Bifásico (somente SULGIPE)</option>
                                 <option value="trifasico">Trifásico</option>
                             </select>
                         </div>
                     </div>
                 </div>
-                
+
             </div>
             
             <button class="btn" id="calculate">Calcular</button>
@@ -424,45 +427,33 @@
             // Lista de equipamentos
             let equipmentItems = [];
             
-            // Lista de equipamentos reais para substituir os "Equipamentos adicionais"
-            const realEquipmentList = [
-                { name: 'Bomba de 1/2 CV', power: 400, fd: 0.95 },
-                { name: 'Bomba de 1 CV', power: 750, fd: 0.95 },
-                { name: 'Freezer vertical', power: 300, fd: 0.75 },
-                { name: 'Máquina de lavar roupa', power: 1000, fd: 0.8 },
-                { name: 'Secadora de roupas', power: 2500, fd: 0.9 },
-                { name: 'Cooktop elétrico', power: 6000, fd: 0.8 },
-                { name: 'Forno micro-ondas', power: 1500, fd: 0.8 },
-                { name: 'Lava-louças', power: 1800, fd: 0.8 },
-                { name: 'Aspirador de pó', power: 1200, fd: 0.7 },
-                { name: 'Ferro de passar', power: 1100, fd: 0.9 },
-                { name: 'Ventilador de teto', power: 70, fd: 1.0 },
-                { name: 'Ventilador de mesa', power: 60, fd: 1.0 },
-                { name: 'Aquecedor de ambiente', power: 1500, fd: 0.9 },
-                { name: 'Purificador de água', power: 50, fd: 1.0 },
-                { name: 'Cafeteira elétrica', power: 1000, fd: 0.8 },
-                { name: 'Liquidificador', power: 500, fd: 0.8 },
-                { name: 'TV LED 55"', power: 120, fd: 1.0 },
-                { name: 'Home theater', power: 300, fd: 1.0 },
-                { name: 'Computador desktop', power: 300, fd: 1.0 },
-                { name: 'Notebook', power: 65, fd: 1.0 },
-                { name: 'Roteador Wi-Fi', power: 10, fd: 1.0 },
-                { name: 'Carregador smartphone', power: 10, fd: 1.0 },
-                { name: 'Máquina de costura', power: 100, fd: 0.8 },
-                { name: 'Furadeira elétrica', power: 600, fd: 0.7 },
-                { name: 'Serra elétrica', power: 1200, fd: 0.7 },
-                { name: 'Lixadeira', power: 300, fd: 0.7 },
-                { name: 'Compressor de ar', power: 1500, fd: 0.8 },
-                { name: 'Cortador de grama', power: 1200, fd: 0.7 },
-                { name: 'Piscina (motor)', power: 750, fd: 0.95 },
-                { name: 'Aquecedor piscina', power: 3000, fd: 0.9 },
-                { name: 'Sauna elétrica', power: 6000, fd: 0.9 },
-                { name: 'Jacuzzi', power: 2500, fd: 0.9 },
-                { name: 'Portão eletrônico', power: 300, fd: 0.8 },
-                { name: 'Cerca elétrica', power: 100, fd: 1.0 },
-                { name: 'Sistema de alarme', power: 50, fd: 1.0 },
-                { name: 'Câmeras de segurança', power: 30, fd: 1.0 },
-                { name: 'Interfone', power: 20, fd: 1.0 }
+            // Catálogo para montar a lista de equipamentos na aba "Carga Manual", em ordem de prioridade.
+            // max: unidades máximas numa unidade consumidora típica; share: fração máxima da carga total
+            // que o item pode ocupar; minLoad: carga total (kW) a partir da qual o item passa a existir;
+            // scalable: pode ganhar mais unidades (até scaleMax) se a carga ainda não fechou.
+            const manualCatalog = [
+                { name: 'Iluminação LED', power: 10, max: 30, share: 0.05, fd: 1.0 },
+                { name: 'Tomadas de uso geral (TUG)', power: 100, max: 25, share: 0.12, fd: 0.8 },
+                { name: 'Geladeira', power: 300, max: 1, share: 1, fd: 0.75 },
+                { name: 'TV LED 55"', power: 120, max: 2, share: 0.05, fd: 1.0 },
+                { name: 'Ventilador de teto', power: 70, max: 4, share: 0.03, fd: 1.0 },
+                { name: 'Chuveiro elétrico', power: 4500, max: 1, share: 1, fd: 0.9, minLoad: 6 },
+                { name: 'Ar condicionado 12000 BTUs', power: 1500, max: 6, share: 0.5, fd: 1.0, minLoad: 2.5, scalable: true, scaleMax: 20 },
+                { name: 'Máquina de lavar roupa', power: 1000, max: 1, share: 1, fd: 0.8, minLoad: 6 },
+                { name: 'Forno micro-ondas', power: 1500, max: 1, share: 1, fd: 0.8, minLoad: 7 },
+                { name: 'Ferro de passar', power: 1100, max: 1, share: 1, fd: 0.9, minLoad: 8 },
+                { name: 'Bomba d\'água 1 CV', power: 750, max: 1, share: 1, fd: 0.95, minLoad: 8, scalable: true, scaleMax: 6 },
+                { name: 'Computador desktop', power: 300, max: 2, share: 0.05, fd: 1.0, minLoad: 8 },
+                { name: 'Portão eletrônico', power: 300, max: 1, share: 1, fd: 0.8, minLoad: 10 },
+                { name: 'Freezer vertical', power: 300, max: 1, share: 1, fd: 0.75, minLoad: 10 },
+                { name: 'Cooktop elétrico', power: 6000, max: 1, share: 1, fd: 0.8, minLoad: 14 },
+                { name: 'Secadora de roupas', power: 2500, max: 1, share: 1, fd: 0.9, minLoad: 14 },
+                { name: 'Lava-louças', power: 1800, max: 1, share: 1, fd: 0.8, minLoad: 16 },
+                { name: 'Forno elétrico', power: 4000, max: 1, share: 1, fd: 0.8, minLoad: 18 },
+                { name: 'Piscina (motor)', power: 750, max: 1, share: 1, fd: 0.95, minLoad: 20 },
+                { name: 'Aquecedor piscina', power: 3000, max: 1, share: 1, fd: 0.9, minLoad: 25 },
+                { name: 'Sauna elétrica', power: 6000, max: 1, share: 1, fd: 0.9, minLoad: 30 },
+                { name: 'Compressor de ar', power: 1500, max: 2, share: 1, fd: 0.8, minLoad: 30, scalable: true, scaleMax: 6 }
             ];
             
             // Configurações completas por categoria
@@ -718,9 +709,63 @@
                             meterBox: 'Caixa para Medidor CMD-BT 200'
                         }
                     }
+                },
+                // SULGIPE - NTD-01, Tabela 1 (220/127 V ou 230/115 V)
+                // Monofásico/Bifásico: classe pela carga instalada CI (kW)
+                // Trifásico: classe pela demanda calculada D (kVA), com CI <= 75 kW
+                sulgipe: {
+                    monofasico: {
+                        M1: { min: 0, max: 3.0, breaker: '32A MONOPOLAR CURVA C', cable: 'CABO 4(4)MM² -1KV -XLPE', conduit: 'eletroduto flexível de 3/4 pol.', measurement: 'Direta', ground: 'condutor de cobre 4mm², eletroduto PVC de 1/2 pol.', aerial: 'Multiplex Al 1x1x10+10 mm² / Cobre 4(4) mm²' },
+                        M2: { min: 3.0, max: 5.0, breaker: '40A MONOPOLAR CURVA C', cable: 'CABO 6(6)MM² -1KV -XLPE', conduit: 'eletroduto flexível de 3/4 pol.', measurement: 'Direta', ground: 'condutor de cobre 6mm², eletroduto PVC de 1/2 pol.', aerial: 'Multiplex Al 1x1x10+10 mm² / Cobre 6(6) mm²' },
+                        M3: { min: 5.0, max: 6.5, breaker: '50A MONOPOLAR CURVA C', cable: 'CABO 10(10)MM² -1KV -XLPE', conduit: 'eletroduto flexível de 3/4 pol.', measurement: 'Direta', ground: 'condutor de cobre 10mm², eletroduto PVC de 1/2 pol.', aerial: 'Multiplex Al 1x1x10+10 mm² / Cobre 10(10) mm²' },
+                        M4: { min: 6.5, max: 8.0, breaker: '63A MONOPOLAR CURVA C', cable: 'CABO 16(16)MM² -1KV -XLPE', conduit: 'eletroduto flexível de 3/4 pol.', measurement: 'Direta', ground: 'condutor de cobre 16mm², eletroduto PVC de 1/2 pol.', aerial: 'Multiplex Al 1x1x10+10 mm² / Cobre 16(16) mm²' }
+                    },
+                    bifasico: {
+                        B1: { min: 0, max: 6.5, breaker: '32A BIPOLAR CURVA C', cable: 'CABO 6(6)MM² -1KV -XLPE', conduit: 'eletroduto flexível de 1 1/4 pol.', measurement: 'Direta', ground: 'condutor de cobre 6mm², eletroduto PVC de 1/2 pol.', aerial: 'Multiplex Al 2x1x10+10 mm² / Cobre 4(4) mm²' },
+                        B2: { min: 6.5, max: 10, breaker: '40A BIPOLAR CURVA C', cable: 'CABO 10(10)MM² -1KV -XLPE', conduit: 'eletroduto flexível de 1 1/4 pol.', measurement: 'Direta', ground: 'condutor de cobre 6mm², eletroduto PVC de 1/2 pol.', aerial: 'Multiplex Al 2x1x10+10 mm² / Cobre 6(6) mm²' },
+                        B3: { min: 10, max: 12.5, breaker: '50A BIPOLAR CURVA C', cable: 'CABO 10(10)MM² -1KV -XLPE', conduit: 'eletroduto flexível de 1 1/4 pol.', measurement: 'Direta', ground: 'condutor de cobre 10mm², eletroduto PVC de 1/2 pol.', aerial: 'Multiplex Al 2x1x16+16 mm² / Cobre 10(10) mm²' },
+                        B4: { min: 12.5, max: 15, breaker: '63A BIPOLAR CURVA C', cable: 'CABO 16(16)MM² -1KV -XLPE', conduit: 'eletroduto flexível de 1 1/2 pol.', measurement: 'Direta', ground: 'condutor de cobre 16mm², eletroduto PVC de 1/2 pol.', aerial: 'Multiplex Al 2x1x16+16 mm² / Cobre 16(16) mm²' },
+                        B5: { min: 15, max: 20, breaker: '70A BIPOLAR CURVA C', cable: 'CABO 25(25)MM² -1KV -XLPE', conduit: 'eletroduto flexível de 1 1/2 pol.', measurement: 'Direta', ground: 'condutor de cobre 16mm², eletroduto PVC de 1/2 pol.', aerial: 'Multiplex Al 2x1x25+25 mm² / Cobre 25(25) mm²' }
+                    },
+                    trifasico: {
+                        T1: { min: 0, max: 15, breaker: '40A TRIPOLAR CURVA C', cable: 'CABO 10(10)MM² -1KV -XLPE', conduit: 'eletroduto flexível de 2 pol.', measurement: 'Direta', ground: 'condutor de cobre 10mm², eletroduto PVC de 1/2 pol.', aerial: 'Multiplex Al 3x1x10+10 mm² / Cobre 10(10) mm²' },
+                        T2: { min: 15, max: 23, breaker: '63A TRIPOLAR CURVA C', cable: 'CABO 16(16)MM² -1KV -XLPE', conduit: 'eletroduto flexível de 2 pol.', measurement: 'Direta', ground: 'condutor de cobre 16mm², eletroduto PVC de 1/2 pol.', aerial: 'Multiplex Al 3x1x16+16 mm² / Cobre 16(16) mm²', projectRequired: true },
+                        T3: { min: 23, max: 27, breaker: '70A TRIPOLAR CURVA C', cable: 'CABO 25(25)MM² -1KV -XLPE', conduit: 'eletroduto flexível de 2 1/2 pol.', measurement: 'Direta', ground: 'condutor de cobre 16mm², eletroduto PVC de 1/2 pol.', aerial: 'Multiplex Al 3x1x25+25 mm² / Cobre 25(25) mm²', projectRequired: true },
+                        T4: { min: 27, max: 38, breaker: '100A TRIPOLAR CURVA C', cable: 'CABO 35(35)MM² -1KV -XLPE', conduit: 'eletroduto flexível de 3 pol.', measurement: 'Direta', ground: 'condutor de cobre 16mm², eletroduto PVC de 1/2 pol.', aerial: 'Multiplex Al 3x1x35+35 mm² / Cobre 35(35) mm²', projectRequired: true },
+                        T5: { min: 38, max: 47, breaker: '125A TRIPOLAR CURVA C', cable: 'CABO 50(25)MM² -1KV -XLPE', conduit: 'eletroduto de aço galvanizado de 3 pol.', measurement: 'Indireta', ground: 'condutor de cobre 25mm², eletroduto PVC de 1/2 pol.', aerial: 'Multiplex Al 3x1x50+50 mm² / Cobre 50(50) mm²', projectRequired: true },
+                        T6: { min: 47, max: 57, breaker: '150A TRIPOLAR CURVA C', cable: 'CABO 70(35)MM² -1KV -XLPE', conduit: 'eletroduto de aço galvanizado de 3 1/2 pol.', measurement: 'Indireta', ground: 'condutor de cobre 35mm², eletroduto PVC de 1/2 pol.', aerial: 'Multiplex Al 3x1x70+70 mm² / Cobre 70(70) mm²', projectRequired: true },
+                        T7: { min: 57, max: 76, breaker: '200A TRIPOLAR CURVA C', cable: 'CABO 95(50)MM² -1KV -XLPE', conduit: 'eletroduto de aço galvanizado de 4 pol.', measurement: 'Indireta', ground: 'condutor de cobre 50mm², eletroduto PVC de 1/2 pol.', aerial: 'Multiplex Al 3x1x70+70 mm² / Cobre 95(95) mm²', projectRequired: true }
+                    }
                 }
             };
-            
+            // COELBA usa a mesma tabela da COSERN neste cadastro
+            categoryConfig.coelba = categoryConfig.cosern;
+
+            // Regras de enquadramento por concessionária (padrão: pela carga instalada em kW)
+            // SULGIPE trifásico: pela demanda D (kVA), carga instalada limitada a 75 kW
+            const selectionRules = {
+                sulgipe: { trifasico: { metric: 'dkva', maxCI: 75 } }
+            };
+
+            const phaseLabels = { monofasico: 'Monofásico', bifasico: 'Bifásico', trifasico: 'Trifásico' };
+
+            // Linhas descritivas de uma categoria (campos ausentes são omitidos)
+            function describeConfig(config) {
+                return [
+                    ['Disjuntor', config.breaker],
+                    ['Cabo', config.cable],
+                    ['Ramal aéreo', config.aerial],
+                    ['Poste', config.post],
+                    ['Eletroduto', config.conduit],
+                    ['Caixa de Medidor', config.meterBox],
+                    ['Tipo de Medição', config.measurement],
+                    ['Aterramento', config.ground]
+                ].filter(([, value]) => value);
+            }
+
+            // Resultado do último cálculo (usado pelo PDF)
+            let lastResult = null;
+
             // Configuração das abas
             tabs.forEach(tab => {
                 tab.addEventListener('click', function() {
@@ -831,248 +876,115 @@
                 utilityResult.value = utilitySelect.options[utilitySelect.selectedIndex].text;
                 
                 // Gerar tabela de cálculo
-                generatePowerTable(totalPower, phaseType);
-                
+                const totals = generatePowerTable(totalPower, activeTab === 'equipment');
+
                 // Determinar categoria
-                determineCategory(totalPower, phaseType, utility);
+                determineCategory(totalPower, phaseType, utility, totals);
                 
                 // Mostrar resultados
                 resultsSection.style.display = 'block';
             });
             
-            // Gerar tabela de cálculo
-            function generatePowerTable(totalPower, phaseType) {
-                powerTableBody.innerHTML = '';
-                
-                // Se estamos na aba de equipamentos, usar os equipamentos reais
-                if (equipmentItems.length > 0) {
-                    let totalCIValue = 0;
-                    let totalCIVAValue = 0;
-                    let totalDKWValue = 0;
-                    let totalDkVAValue = 0;
-                    
-                    equipmentItems.forEach((item, index) => {
-                        const powerW = item.power;
-                        const quantity = item.quantity;
-                        const ciKW = (powerW * quantity) / 1000;
-                        const fp = 0.92; // Fator de potência padrão
-                        const ciKVA = ciKW / fp;
-                        
-                        // Fator de demanda baseado no tipo de equipamento
-                        let fd = 1.0;
-                        if (item.name.toLowerCase().includes('geladeira') || item.name.toLowerCase().includes('freezer')) {
-                            fd = 0.75;
-                        } else if (item.name.toLowerCase().includes('forno') || item.name.toLowerCase().includes('cooktop')) {
-                            fd = 0.8;
-                        } else if (item.name.toLowerCase().includes('chuveiro') || item.name.toLowerCase().includes('aquecedor')) {
-                            fd = 0.9;
-                        } else if (item.name.toLowerCase().includes('bomba')) {
-                            fd = 0.95;
-                        } else if (item.name.toLowerCase().includes('ferro') || item.name.toLowerCase().includes('secadora')) {
-                            fd = 0.9;
-                        } else if (item.name.toLowerCase().includes('lava') || item.name.toLowerCase().includes('máquina')) {
-                            fd = 0.8;
-                        } else if (item.name.toLowerCase().includes('ferramenta')) {
-                            fd = 0.7;
-                        }
-                        
-                        const dKW = ciKW * fd;
-                        const dKVA = ciKVA * fd;
-                        
-                        totalCIValue += ciKW;
-                        totalCIVAValue += ciKVA;
-                        totalDKWValue += dKW;
-                        totalDkVAValue += dKVA;
-                        
-                        const row = document.createElement('tr');
-                        row.innerHTML = `
-                            <td>${index + 1}</td>
-                            <td>${item.name}</td>
-                            <td>${powerW}</td>
-                            <td>${quantity}</td>
-                            <td>${ciKW.toFixed(2)}</td>
-                            <td>${fp}</td>
-                            <td>${ciKVA.toFixed(6)}</td>
-                            <td>${fd}</td>
-                            <td>${dKW.toFixed(2)}</td>
-                            <td>${dKVA.toFixed(6)}</td>
-                        `;
-                        powerTableBody.appendChild(row);
-                    });
-                    
-                    totalCI.textContent = totalCIValue.toFixed(2);
-                    totalCIVA.textContent = totalCIVAValue.toFixed(6);
-                    totalDKW.textContent = totalDKWValue.toFixed(2);
-                    totalDkVA.textContent = totalDkVAValue.toFixed(6);
-                } else {
-                    // Para a aba manual, usar dados genéricos
-                    const equipmentData = [
-                        { name: 'Forno elétrico', power: 4000, quantity: 1, fd: 0.8 },
-                        { name: 'Ar condicionado', power: 3000, quantity: 2, fd: 1.0 },
-                        { name: 'Geladeira', power: 1000, quantity: 3, fd: 0.75 },
-                        { name: 'Lâmpadas', power: 100, quantity: 20, fd: 1.0 },
-                        { name: 'Chuveiro elétrico', power: 3000, quantity: 1, fd: 0.9 },
-                        { name: 'Bomba D\'água', power: 4000, quantity: 1, fd: 0.95 }
-                    ];
-                    
-                    let totalCIValue = 0;
-                    let totalCIVAValue = 0;
-                    let totalDKWValue = 0;
-                    let totalDkVAValue = 0;
-                    
-                    equipmentData.forEach((item, index) => {
-                        const powerW = item.power;
-                        const quantity = item.quantity;
-                        const ciKW = (powerW * quantity) / 1000;
-                        const fp = 0.92;
-                        const ciKVA = ciKW / fp;
-                        const fd = item.fd;
-                        const dKW = ciKW * fd;
-                        const dKVA = ciKVA * fd;
-                        
-                        totalCIValue += ciKW;
-                        totalCIVAValue += ciKVA;
-                        totalDKWValue += dKW;
-                        totalDkVAValue += dKVA;
-                        
-                        const row = document.createElement('tr');
-                        row.innerHTML = `
-                            <td>${index + 1}</td>
-                            <td>${item.name}</td>
-                            <td>${powerW}</td>
-                            <td>${quantity}</td>
-                            <td>${ciKW.toFixed(2)}</td>
-                            <td>${fp}</td>
-                            <td>${ciKVA.toFixed(6)}</td>
-                            <td>${fd}</td>
-                            <td>${dKW.toFixed(2)}</td>
-                            <td>${dKVA.toFixed(6)}</td>
-                        `;
-                        powerTableBody.appendChild(row);
-                    });
-                    
-                    // Adicionar equipamentos reais adicionais se a carga total for maior que 22 kW
-                    if (totalPower > 22) {
-                        const basePower = 22; // Potência dos equipamentos base
-                        const additionalPower = totalPower - basePower;
-                        
-                        // Selecionar equipamentos reais para completar a carga, usando múltiplas unidades
-                        let currentAdditionalPower = 0;
-                        let equipmentIndex = 0;
-                        
-                        // Embaralhar a lista de equipamentos
-                        const shuffledEquipment = [...realEquipmentList].sort(() => 0.5 - Math.random());
-                        
-                        while (currentAdditionalPower < additionalPower && equipmentIndex < shuffledEquipment.length) {
-                            const equipment = shuffledEquipment[equipmentIndex];
-                            const powerW = equipment.power;
-                            
-                            // Calcular quantas unidades deste equipamento podemos adicionar
-                            const remainingPower = additionalPower - currentAdditionalPower;
-                            const maxUnits = Math.min(
-                                Math.floor(remainingPower / (powerW / 1000)),
-                                5 // Limitar a 5 unidades por equipamento para não ficar lista muito grande
-                            );
-                            
-                            if (maxUnits > 0) {
-                                const quantity = Math.max(1, maxUnits);
-                                const ciKW = (powerW * quantity) / 1000;
-                                const fp = 0.92;
-                                const ciKVA = ciKW / fp;
-                                const fd = equipment.fd;
-                                const dKW = ciKW * fd;
-                                const dKVA = ciKVA * fd;
-                                
-                                totalCIValue += ciKW;
-                                totalCIVAValue += ciKVA;
-                                totalDKWValue += dKW;
-                                totalDkVAValue += dKVA;
-                                currentAdditionalPower += ciKW;
-                                
-                                const row = document.createElement('tr');
-                                row.innerHTML = `
-                                    <td>${equipmentData.length + equipmentIndex + 1}</td>
-                                    <td>${equipment.name}</td>
-                                    <td>${powerW}</td>
-                                    <td>${quantity}</td>
-                                    <td>${ciKW.toFixed(2)}</td>
-                                    <td>${fp}</td>
-                                    <td>${ciKVA.toFixed(6)}</td>
-                                    <td>${fd}</td>
-                                    <td>${dKW.toFixed(2)}</td>
-                                    <td>${dKVA.toFixed(6)}</td>
-                                `;
-                                powerTableBody.appendChild(row);
-                            }
-                            
-                            equipmentIndex++;
-                        }
-                    }
-                    
-                    // Ajuste final para garantir carga exata
-                    const currentTotal = totalCIValue;
-                    if (Math.abs(currentTotal - totalPower) > 0.01) {
-                        const adjustment = totalPower - currentTotal;
-                        if (Math.abs(adjustment) > 0.01) {
-                            // Encontrar equipamento que melhor se ajusta
-                            const adjustmentPower = Math.round(adjustment * 1000);
-                            let bestEquipment = null;
-                            let bestDiff = Infinity;
-                            
-                            for (const equipment of realEquipmentList) {
-                                const diff = Math.abs(equipment.power - Math.abs(adjustmentPower));
-                                if (diff < bestDiff) {
-                                    bestDiff = diff;
-                                    bestEquipment = equipment;
-                                }
-                            }
-                            
-                            if (bestEquipment) {
-                                const powerW = adjustmentPower > 0 ? bestEquipment.power : -bestEquipment.power;
-                                const quantity = 1;
-                                const ciKW = (powerW * quantity) / 1000;
-                                const fp = 0.92;
-                                const ciKVA = ciKW / fp;
-                                const fd = bestEquipment.fd;
-                                const dKW = ciKW * fd;
-                                const dKVA = ciKVA * fd;
-                                
-                                totalCIValue += ciKW;
-                                totalCIVAValue += ciKVA;
-                                totalDKWValue += dKW;
-                                totalDkVAValue += dKVA;
-                                
-                                const rowCount = powerTableBody.querySelectorAll('tr').length;
-                                const row = document.createElement('tr');
-                                row.innerHTML = `
-                                    <td>${rowCount + 1}</td>
-                                    <td>${bestEquipment.name}</td>
-                                    <td>${powerW}</td>
-                                    <td>${quantity}</td>
-                                    <td>${ciKW.toFixed(2)}</td>
-                                    <td>${fp}</td>
-                                    <td>${ciKVA.toFixed(6)}</td>
-                                    <td>${fd}</td>
-                                    <td>${dKW.toFixed(2)}</td>
-                                    <td>${dKVA.toFixed(6)}</td>
-                                `;
-                                powerTableBody.appendChild(row);
-                            }
-                        }
-                    }
-                    
-                    totalCI.textContent = totalCIValue.toFixed(2);
-                    totalCIVA.textContent = totalCIVAValue.toFixed(6);
-                    totalDKW.textContent = totalDKWValue.toFixed(2);
-                    totalDkVA.textContent = totalDkVAValue.toFixed(6);
-                }
+            // Fator de demanda estimado pelo nome do equipamento
+            function demandFactorByName(name) {
+                const n = name.toLowerCase();
+                if (n.includes('geladeira') || n.includes('freezer')) return 0.75;
+                if (n.includes('forno') || n.includes('cooktop')) return 0.8;
+                if (n.includes('chuveiro') || n.includes('aquecedor')) return 0.9;
+                if (n.includes('bomba')) return 0.95;
+                if (n.includes('ferro') || n.includes('secadora')) return 0.9;
+                if (n.includes('lava') || n.includes('máquina')) return 0.8;
+                if (n.includes('ferramenta')) return 0.7;
+                return 1.0;
             }
-            
+
+            // Gerar tabela de cálculo. Retorna os totais { ci, civa, dkw, dkva }
+            function generatePowerTable(totalPower, useEquipment) {
+                powerTableBody.innerHTML = '';
+                const fp = 0.92; // Fator de potência padrão
+                const totals = { ci: 0, civa: 0, dkw: 0, dkva: 0 };
+                let rowIndex = 0;
+
+                function addRow(name, powerW, quantity, fd) {
+                    const ciKW = (powerW * quantity) / 1000;
+                    const ciKVA = ciKW / fp;
+                    const dKW = ciKW * fd;
+                    const dKVA = ciKVA * fd;
+
+                    totals.ci += ciKW;
+                    totals.civa += ciKVA;
+                    totals.dkw += dKW;
+                    totals.dkva += dKVA;
+                    rowIndex++;
+
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${rowIndex}</td>
+                        <td>${name}</td>
+                        <td>${powerW}</td>
+                        <td>${quantity}</td>
+                        <td>${ciKW.toFixed(2)}</td>
+                        <td>${fp}</td>
+                        <td>${ciKVA.toFixed(6)}</td>
+                        <td>${fd}</td>
+                        <td>${dKW.toFixed(2)}</td>
+                        <td>${dKVA.toFixed(6)}</td>
+                    `;
+                    powerTableBody.appendChild(row);
+                }
+
+                if (useEquipment) {
+                    equipmentItems.forEach(item => {
+                        addRow(item.name, item.power, item.quantity, demandFactorByName(item.name));
+                    });
+                } else {
+                    // Aba manual: monta uma unidade consumidora típica, de forma determinística,
+                    // com quantidades realistas, que fecha na carga informada
+                    let remaining = totalPower;
+                    const quantities = new Map();
+
+                    // 1ª passada: itens por ordem de prioridade, respeitando max, share e minLoad
+                    manualCatalog.forEach(item => {
+                        if (item.minLoad && totalPower < item.minLoad) return;
+                        const budget = Math.min(remaining, totalPower * item.share);
+                        const qty = Math.min(item.max, Math.floor((budget * 1000) / item.power + 1e-9));
+                        if (qty >= 1) {
+                            quantities.set(item, qty);
+                            remaining -= (item.power * qty) / 1000;
+                        }
+                    });
+
+                    // 2ª passada: se ainda sobra carga, acrescenta unidades aos itens escaláveis (ar condicionado, bombas...)
+                    manualCatalog.filter(item => item.scalable && quantities.has(item)).forEach(item => {
+                        const extra = Math.min(item.scaleMax - quantities.get(item), Math.floor((remaining * 1000) / item.power + 1e-9));
+                        if (extra > 0) {
+                            quantities.set(item, quantities.get(item) + extra);
+                            remaining -= (item.power * extra) / 1000;
+                        }
+                    });
+
+                    manualCatalog.forEach(item => {
+                        if (quantities.has(item)) addRow(item.name, item.power, quantities.get(item), item.fd);
+                    });
+
+                    // Sobra residual vira uma linha de cargas diversas
+                    if (remaining >= 0.005) {
+                        addRow('Cargas diversas (tomadas de uso específico)', Math.round(remaining * 1000), 1, 0.8);
+                    }
+                }
+
+                totalCI.textContent = totals.ci.toFixed(2);
+                totalCIVA.textContent = totals.civa.toFixed(6);
+                totalDKW.textContent = totals.dkw.toFixed(2);
+                totalDkVA.textContent = totals.dkva.toFixed(6);
+                return totals;
+            }
+
             // Determinar categoria
-            function determineCategory(totalPower, phaseType, utility) {
-                let category = '';
-                let config = null;
-                
+            function determineCategory(totalPower, phaseType, utility, totals) {
+                lastResult = null;
+                const phaseName = phaseLabels[phaseType];
+
                 const utilityConfig = categoryConfig[utility];
                 if (!utilityConfig) {
                     categoryInfo.innerHTML = `
@@ -1081,44 +993,62 @@
                     `;
                     return;
                 }
-                
+
                 const categories = utilityConfig[phaseType];
-                
-                for (const [catName, catConfig] of Object.entries(categories)) {
-                    if (totalPower >= catConfig.min && totalPower <= catConfig.max) {
-                        category = catName;
-                        config = catConfig;
-                        break;
-                    }
-                }
-                
-                if (!category) {
-                    const maxPower = utility === 'energisa' ? 
-                        (phaseType === 'monofasico' ? '15.4 kW' : '81.5 kW') :
-                        (phaseType === 'monofasico' ? '15 kW' : '75 kW');
-                    
-                    category = 'Fora do escopo';
+                if (!categories) {
                     categoryInfo.innerHTML = `
-                        <h3>Categoria de Fornecimento: ${category}</h3>
-                        <p><strong>Consulte a concessionária para cargas acima de ${maxPower}</strong></p>
-                        <p><strong>Carga Total:</strong> ${totalPower.toFixed(2)} kW</p>
-                        <p><strong>Tipo de Fase:</strong> ${phaseType === 'monofasico' ? 'Monofásico' : 'Trifásico'}</p>
+                        <h3>Categoria de Fornecimento: Fora do escopo</h3>
+                        <p><strong>${utilitySelect.options[utilitySelect.selectedIndex].text} não possui categoria ${phaseName.toLowerCase()} cadastrada.</strong></p>
                     `;
                     return;
                 }
-                
+
+                // Grandeza usada no enquadramento (kW de CI, ou kVA de demanda na SULGIPE trifásica)
+                const rule = (selectionRules[utility] || {})[phaseType];
+                const useDemand = rule && rule.metric === 'dkva';
+                const value = useDemand ? totals.dkva : totalPower;
+                const unit = useDemand ? 'kVA (demanda)' : 'kW';
+
+                let category = '';
+                let config = null;
+                const outOfCI = rule && rule.maxCI && totalPower > rule.maxCI;
+
+                // Categorias em ordem crescente: vale a primeira cujo limite superior comporta o valor
+                if (!outOfCI) {
+                    for (const [catName, catConfig] of Object.entries(categories)) {
+                        if (value <= catConfig.max) {
+                            category = catName;
+                            config = catConfig;
+                            break;
+                        }
+                    }
+                }
+
+                if (!category) {
+                    const lastCat = Object.values(categories).pop();
+                    const maxText = outOfCI ? `${rule.maxCI} kW de carga instalada` : `${lastCat.max} ${unit}`;
+                    categoryInfo.innerHTML = `
+                        <h3>Categoria de Fornecimento: Fora do escopo</h3>
+                        <p><strong>Consulte a concessionária para valores acima de ${maxText}</strong></p>
+                        <p><strong>Carga Total:</strong> ${totalPower.toFixed(2)} kW</p>
+                        ${useDemand ? `<p><strong>Demanda:</strong> ${totals.dkva.toFixed(2)} kVA</p>` : ''}
+                        <p><strong>Tipo de Fase:</strong> ${phaseName}</p>
+                    `;
+                    return;
+                }
+
+                lastResult = { category, config, phaseType, totalPower, utility, demandKVA: useDemand ? totals.dkva : null };
+
                 categoryInfo.innerHTML = `
                     <h3>Categoria de Fornecimento: ${category}</h3>
-                    <p><strong>Disjuntor:</strong> ${config.breaker}</p>
-                    <p><strong>Cabo:</strong> ${config.cable}</p>
-                    <p><strong>Poste:</strong> ${config.post}</p>
-                    <p><strong>Eletroduto:</strong> ${config.conduit}</p>
-                    <p><strong>Caixa de Medidor:</strong> ${config.meterBox}</p>
+                    ${describeConfig(config).map(([label, text]) => `<p><strong>${label}:</strong> ${text}</p>`).join('')}
                     <p><strong>Carga Total:</strong> ${totalPower.toFixed(2)} kW</p>
-                    <p><strong>Tipo de Fase:</strong> ${phaseType === 'monofasico' ? 'Monofásico' : 'Trifásico'}</p>
+                    ${useDemand ? `<p><strong>Demanda Calculada:</strong> ${totals.dkva.toFixed(2)} kVA</p>` : ''}
+                    <p><strong>Tipo de Fase:</strong> ${phaseName}</p>
+                    ${config.projectRequired ? '<p><strong>Atenção:</strong> para este tipo de atendimento é obrigatória a apresentação de projeto de padrão de entrada (item 6.6.1 da NTD-01).</p>' : ''}
                 `;
             }
-            
+
             // Limpar formulário
             resetBtn.addEventListener('click', function() {
                 ucInput.value = '';
@@ -1143,6 +1073,10 @@
             
             // Função para gerar PDF
             function generatePDF() {
+                if (!lastResult) {
+                    alert('Não há categoria de fornecimento calculada para gerar o memorial.');
+                    return;
+                }
                 const { jsPDF } = window.jspdf;
                 const doc = new jsPDF('p', 'mm', 'a4');
                 
@@ -1181,8 +1115,11 @@
                 
                 const utility = utilitySelect.value;
                 const utilityName = utilitySelect.options[utilitySelect.selectedIndex].text;
-                const normText = utility === 'energisa' ? 
-                    'NDU-001 - Fornecimento de Energia Elétrica em Tensão Secundária para Edificações Individuais' :
+                const normTexts = {
+                    energisa: 'NDU-001 - Fornecimento de Energia Elétrica em Tensão Secundária para Edificações Individuais',
+                    sulgipe: 'NTD-01 - Ligação de Unidades Consumidoras em Tensão Secundária de Distribuição'
+                };
+                const normText = normTexts[utility] ||
                     'DIS-NOR-030 - Fornecimento de Energia Elétrica em Tensão Secundária de Distribuição a Edificações Individuais - REV 05';
                 
                 const objetivoLines = doc.splitTextToSize(`Atender os requisitos da norma ${normText} das instalações elétricas em baixa tensão do cliente ${ownerInput.value}, no CPF/CNPJ ${cpfCnpjInput.value}, de acordo com as orientações dos desenhos do ANEXO  da respectiva norma para atender a unidade consumidora localizada no endereço:`, pageWidth - 2 * margin);
@@ -1205,16 +1142,17 @@
                 yPos += lineHeight;
                 doc.setFont(undefined, 'normal');
                 
-                const categoryText = categoryInfo.textContent;
-                const categoryMatch = categoryText.match(/Categoria de Fornecimento:\s*(.*)/);
-                const category = categoryMatch ? categoryMatch[1] : 'Não especificada';
-                
-                const phaseType = phaseTypeSelect.value;
-                const utilityConfig = categoryConfig[utility];
-                const categories = utilityConfig[phaseType];
-                const config = categories[category] || {};
-                
-                const caracteristicasLines = doc.splitTextToSize(`Passarão a ser utilizados ${config.cable ? config.cable.toLowerCase() : 'cabo não especificado'} no ramal de entrada, ${config.meterBox ? config.meterBox : 'Caixa para Medidor'}, ${config.breaker ? config.breaker.toLowerCase() : 'disjuntor não especificado'}, ${config.post ? config.post : 'poste não especificado'} e ${config.conduit ? config.conduit : 'eletroduto não especificado'}.`, pageWidth - 2 * margin);
+                const { category, config, phaseType, totalPower, demandKVA } = lastResult;
+
+                const itens = [
+                    `${config.cable ? config.cable.toLowerCase() : 'cabo não especificado'} no ramal de entrada`,
+                    config.meterBox || (config.measurement ? `medição ${config.measurement.toLowerCase()}` : 'Caixa para Medidor'),
+                    config.breaker ? config.breaker.toLowerCase() : 'disjuntor não especificado',
+                    config.post,
+                    config.conduit || 'eletroduto não especificado'
+                ].filter(Boolean);
+                const itensTexto = itens.length > 1 ? `${itens.slice(0, -1).join(', ')} e ${itens[itens.length - 1]}` : itens[0];
+                const caracteristicasLines = doc.splitTextToSize(`Passarão a ser utilizados ${itensTexto}.`, pageWidth - 2 * margin);
                 caracteristicasLines.forEach(line => {
                     yPos = checkPageHeight(yPos);
                     doc.text(line, margin, yPos);
@@ -1239,12 +1177,19 @@
                 doc.setFont(undefined, 'normal');
                 
                 // Apenas Energisa tem 3 hastes, as demais ficam sem o número
-                const aterramentoText = utility === 'energisa' ? 
+                let aterramentoText = utility === 'energisa' ?
                     "3 Haste de aterramento de cobre com h=2,4m e espessura de 3/4'." :
                     "Haste de aterramento de cobre com h=2,4m e espessura de 3/4'.";
-                
-                doc.text(aterramentoText, margin, yPos);
-                yPos += sectionSpacing;
+                if (config.ground) {
+                    aterramentoText += ` Condutor de aterramento: ${config.ground}.`;
+                }
+
+                doc.splitTextToSize(aterramentoText, pageWidth - 2 * margin).forEach(line => {
+                    yPos = checkPageHeight(yPos);
+                    doc.text(line, margin, yPos);
+                    yPos += lineHeight;
+                });
+                yPos += sectionSpacing - lineHeight;
                 
                 // 4- CARGA INSTALADA e DEMANDA MAXIMA
                 yPos = checkPageHeight(yPos, 50); // Mais espaço para a tabela
@@ -1302,30 +1247,23 @@
                         8: { cellWidth: 15, halign: 'center' },
                         9: { cellWidth: 20, halign: 'center' }
                     },
-                    didDrawPage: function (data) {
-                        // Adicionar informações da categoria após a tabela
-                        const finalY = data.cursor.y + 5;
-                        let infoY = finalY;
-                        
-                        doc.setFontSize(8);
-                        doc.setFont(undefined, 'bold');
-                        doc.text(`Categoria de Fornecimento: ${category}`, margin, infoY);
-                        infoY += 4;
-                        doc.setFont(undefined, 'normal');
-                        doc.text(`Disjuntor: ${config.breaker || 'Não especificado'}`, margin, infoY);
-                        infoY += 4;
-                        doc.text(`Cabo: ${config.cable || 'Não especificado'}`, margin, infoY);
-                        infoY += 4;
-                        doc.text(`Poste: ${config.post || 'Não especificado'}`, margin, infoY);
-                        infoY += 4;
-                        doc.text(`Eletroduto: ${config.conduit || 'Não especificado'}`, margin, infoY);
-                        infoY += 4;
-                        doc.text(`Caixa de Medidor: ${config.meterBox || 'Não especificada'}`, margin, infoY);
-                        infoY += 4;
-                        doc.text(`Carga Total: ${totalPowerInput.value || document.querySelector('#totalPower').value} kW`, margin, infoY);
-                        infoY += 4;
-                        doc.text(`Tipo de Fase: ${phaseTypeSelect.value === 'monofasico' ? 'Monofásico' : 'Trifásico'}`, margin, infoY);
-                    }
+                });
+                
+                // Informações da categoria, uma única vez após a tabela
+                let infoY = doc.lastAutoTable.finalY + 6;
+                const infoLines = [
+                    ['Categoria de Fornecimento', category],
+                    ...describeConfig(config),
+                    ['Carga Total', `${totalPower.toFixed(2)} kW`],
+                    ...(demandKVA !== null ? [['Demanda Calculada', `${demandKVA.toFixed(2)} kVA`]] : []),
+                    ['Tipo de Fase', phaseLabels[phaseType]]
+                ];
+                doc.setFontSize(8);
+                infoLines.forEach(([label, text], idx) => {
+                    infoY = checkPageHeight(infoY, 15);
+                    doc.setFont(undefined, idx === 0 ? 'bold' : 'normal');
+                    doc.text(`${label}: ${text}`, margin, infoY);
+                    infoY += 4;
                 });
                 
                 // Salvar o PDF
